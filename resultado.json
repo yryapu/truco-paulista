@@ -4,7 +4,7 @@
     "pesquisa": "https://github.com/yryapu/poliorketikos-truco-paulista",
     "operacional": "https://github.com/yryapu/truco-paulista"
   },
-  "commit_final": "c8c79560b6debe4a8f3f07fc5b601f88e9f606e5",
+  "commit_final": "1de900452b262f0c534ca82ba7913d9df699f627",
   "observacao_sobre_commit_final": "É o sha do último commit de código, que é o que este arquivo documenta. Um arquivo não pode conter o sha do commit que o inclui — o sha depende do conteúdo. O commit que adiciona este resultado.json vem depois e é o HEAD de main.",
   "como_rodar": [
     "make subir     # docker compose up -d --build  ->  http://localhost:8411 (healthcheck gateia o 'subiu')",
@@ -201,7 +201,7 @@
     "O 1x1 NÃO VEM DE FONTE NENHUMA: as quatro fontes só descrevem 2x2, e F-04 chega a definir 'Participantes: 2 duplas de jogadores'. Estendi pelo caminho mais curto (mesmas regras, dois jogadores, três cartas, uma vira) e declarei em D-03. Se existir uma variante canônica diferente, meu 1x1 está errado e nenhum teste meu acusaria — eles testam a minha decisão, não a regra do mundo.",
     "DIVIRJO DE UMA FONTE CONSCIENTEMENTE: F-02 diz que pedir aumento em mão de onze é derrota imediata; eu recuso a ação em vez de punir (D-06). Quem esperar a regra literal vai achar meu jogo permissivo nesse ponto."
   ],
-  "tempo_minutos": 99,
+  "tempo_minutos": 113,
   "como_o_tempo_foi_medido": "Derivado, não digitado: (date +%s menos o timestamp do primeiro commit do repositório de pesquisa) dividido por 60. O comando está no histórico. Inclui a pesquisa das fontes, que começou poucos minutos antes do primeiro commit.",
   "o_que_eu_mais_erraria_de_novo": "Cinco dos meus nove erros registrados foram na VERIFICAÇÃO, não no produto: filtrei com grep a saída de um comando que falhou e apaguei a mensagem que continha a resposta; orcei um laço em iterações quando o custo era tempo de espera; assertei com uma palavra que os dois desfechos compartilhavam; varri a página inteira num teste de isolamento e tropecei no meu próprio logotipo. Um só erro foi de produto, e não fui eu que o achei — achou a aposta aleatória que eu havia introduzido por outro motivo. Isso inverte a intuição com que comecei: esperava gastar o esforço acertando o truco e gastei a maior parte acertando como eu olhava para o truco. A pesquisa antes do código explica a assimetria — com as regras tabeladas e conferidas contra fonte, o motor passou 31 de 31 na primeira execução; onde eu não tinha especificação prévia, que eram meus próprios testes, foi onde errei.",
   "verificacao_das_provas": {
