@@ -258,8 +258,9 @@ test('truco pela interface: quem pede ganha 1 ponto quando o outro corre', async
   await expect(corredor.getByTestId('btn-aceitar')).toBeVisible();
   await expect(corredor.getByTestId('btn-correr')).toBeVisible();
   await expect(corredor.getByTestId('btn-aumentar')).toHaveText('SEIS!');
-  await expect(corredor.getByTestId('aviso')).toContainText('pediram truco');
-  await expect(pedinte.getByTestId('aviso')).toContainText('pediu truco');
+  await expect(corredor.getByTestId('aviso')).toContainText('pediram TRUCO');
+  // Na própria tela de quem pediu, a mesa fala em segunda pessoa — não repete o nome dele.
+  await expect(pedinte.getByTestId('aviso')).toContainText('você pediu TRUCO');
   await expect(pedinte.getByTestId('btn-aceitar')).toBeHidden();
 
   // A mão já vale 3 na proposta... mas só conta se aceitarem. Correr dá 1 (R-06).

@@ -9,6 +9,12 @@ fonte está no repositório de pesquisa —
 Os comentários deste código citam os IDs `R-nn` (regra com fonte) e `D-nn` (decisão minha
 onde as fontes silenciam ou se contradizem).
 
+![mesa 2x2 em jogo](docs/mesa-2x2.png)
+
+*Mesa 2x2 real, capturada pelo próprio Playwright (`e2e/captura.js`). As cartas são os
+caracteres Unicode que vieram do WebSocket, desenhados com um subconjunto de 8,6 KB da Noto
+Sans Symbols 2 que vai embarcado — ver `web/fontes/LEIA-ME.md`.*
+
 ## Rodar
 
 ```bash
@@ -107,6 +113,7 @@ jogadas e prêmio.
 | `src/webhooks.rs` | assinatura, entrega, e o bloqueio de link-local |
 | `src/api.rs` | rotas HTTP e o WebSocket |
 | `web/` | cliente, um HTML + um CSS + um JS, sem passo de build |
+| `web/fontes/` | subconjunto de 41 glifos de carta (8,6 KB), para a mesa não virar caixinhas |
 
 ## Riscos conhecidos
 

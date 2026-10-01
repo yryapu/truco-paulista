@@ -1,3 +1,15 @@
+/* As cartas do truco vivem no bloco Unicode Playing Cards (U+1F0A0..U+1F0DE), que poucas
+   fontes de sistema cobrem: o macOS cobre, a maioria das instalações de Linux e Windows não.
+   Sem esta fonte, a mesa aparece como caixas com o código hexadecimal dentro — foi assim que eu
+   descobri, numa captura de tela do próprio jogo. São 8,6 KB porque é um subconjunto de 41
+   glifos; ver web/fontes/LEIA-ME.md. */
+@font-face {
+  font-family: 'Cartas';
+  src: url('fontes/cartas.woff2') format('woff2');
+  font-display: block; /* block, não swap: mostrar tofu e depois trocar é pior que esperar 8 KB */
+  unicode-range: U+1F0A0-1F0DE;
+}
+
 :root{
   --feltro:#0d5c3f; --feltro-escuro:#07422c; --creme:#f4efe4; --tinta:#17201c;
   --ouro:#d9a53b; --sangue:#a3272c; --borda:rgba(0,0,0,.18);
@@ -11,7 +23,8 @@ header{
   display:flex;align-items:center;gap:1rem;flex-wrap:wrap;
   padding:.7rem 1.1rem;background:var(--feltro-escuro);color:var(--creme);
 }
-header h1{font-size:1.15rem;margin:0;letter-spacing:.02em}
+header h1{font-size:1.5rem;margin:0;letter-spacing:.02em;
+  font-family:'Cartas',ui-sans-serif,system-ui,sans-serif}
 .eu{margin-left:auto;display:flex;align-items:center;gap:.6rem;font-size:.9rem;flex-wrap:wrap}
 .moedas b{color:var(--ouro)}
 .emblema{
@@ -58,7 +71,7 @@ table.rank{width:100%;border-collapse:collapse;font-size:.85rem}
 }
 .placar b{font-size:1.05rem}
 .placar .meio{color:#5c6660;font-size:.85rem}
-.carta-min{font-size:1.5rem;line-height:1}
+.carta-min{font-size:2.4rem;line-height:1;font-family:'Cartas',"Noto Sans Symbols 2","Apple Symbols",serif}
 .aviso{
   text-align:center;font-weight:600;color:var(--feltro-escuro);min-height:1.4em;margin:.2rem 0 .6rem;
 }
@@ -73,25 +86,29 @@ table.rank{width:100%;border-collapse:collapse;font-size:.85rem}
   font-size:.82rem;text-align:center;min-width:6.5rem;
 }
 .assento.vez{outline:2px solid var(--ouro)}
-.assento .dorsos{letter-spacing:-.35em;font-size:1.3rem;display:block;margin-top:.15rem}
+.assento .dorsos{letter-spacing:-.3em;font-size:2.3rem;display:block;margin-top:.15rem;
+  font-family:'Cartas',"Noto Sans Symbols 2","Apple Symbols",serif}
 .assento .eq{opacity:.75;font-size:.72rem;display:block}
 .na-mesa{display:flex;gap:.6rem;min-height:5rem;align-items:center;justify-content:center;flex-wrap:wrap}
 .carta{
   background:var(--creme);border-radius:8px;border:1px solid #000;
-  font-size:3.2rem;line-height:1;padding:.1rem .25rem .2rem;
-  font-family:"Noto Sans Symbols 2","Symbola","DejaVu Sans","Apple Symbols",serif;
+  /* Corpo grande porque os glifos da Noto Sans Symbols 2 são desenhados pequenos dentro do
+     em: a 3,2rem a carta saía do tamanho de uma letra. */
+  font-size:5.6rem;line-height:.95;padding:0 .1rem .1rem;
+  /* 'Cartas' primeiro; as de sistema ficam como rede caso o woff2 não carregue. */
+  font-family:'Cartas',"Noto Sans Symbols 2","Symbola","Apple Symbols","DejaVu Sans",serif;
 }
 .carta.dorso{background:#1d3b8a;color:#dfe6ff}
 .carta.jogada{box-shadow:0 3px 8px rgba(0,0,0,.4)}
 .rodadas{display:flex;gap:.4rem;font-size:.78rem;color:var(--creme);opacity:.9}
 .rodadas span{background:rgba(0,0,0,.3);border-radius:999px;padding:.1rem .55rem}
 .mao{display:flex;gap:.6rem;justify-content:center;margin:1rem 0 .6rem;flex-wrap:wrap}
-.mao button{border:1px solid #000;background:var(--creme);padding:.15rem .3rem .25rem;transition:transform .08s}
+.mao button{border:1px solid #000;background:var(--creme);padding:0 .1rem .1rem;transition:transform .08s}
 .mao button:not(:disabled):hover{transform:translateY(-6px)}
 .parceiro{display:flex;gap:.3rem;justify-content:center;align-items:center;font-size:.8rem;color:var(--creme)}
 .acoes{display:flex;gap:.6rem;justify-content:center;flex-wrap:wrap;align-items:center}
 .encobrir{flex-direction:row;align-items:center;gap:.3rem;font-size:.82rem;color:#3b4541}
-.log{
+.log{font-family:'Cartas',ui-sans-serif,system-ui,sans-serif;
   font-size:.8rem;color:#4a534e;background:#fff;border:1px solid var(--borda);border-radius:10px;
   padding:.6rem 1.2rem;margin-top:1rem;max-height:11rem;overflow:auto;
 }

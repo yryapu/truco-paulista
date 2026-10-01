@@ -219,9 +219,14 @@ function pintarMesa(e) {
       ? '✋ MÃO DE ONZE — vocês veem as cartas do parceiro: jogar ou correr?'
       : 'mão de onze do adversário — ele está decidindo';
   } else if (f && f.fase === 'respondendo') {
-    aviso = f.responde === e.seu_assento
-      ? `pediram ${nomeDoPedido(e.proposta)} — aceita, aumenta ou corre?`
-      : `${apelidoDe(e, f.pedinte)} pediu ${nomeDoPedido(e.proposta)}`;
+    if (f.responde === e.seu_assento) {
+      aviso = `pediram ${nomeDoPedido(e.proposta).toUpperCase()} — aceita, aumenta ou corre?`;
+    } else if (f.pedinte === e.seu_assento) {
+      // Na própria tela de quem pediu, dizer o nome dele seria estranho.
+      aviso = `você pediu ${nomeDoPedido(e.proposta).toUpperCase()} — esperando resposta`;
+    } else {
+      aviso = `${apelidoDe(e, f.pedinte)} pediu ${nomeDoPedido(e.proposta).toUpperCase()}`;
+    }
   } else if (f && f.fase === 'jogando') {
     aviso = f.vez === e.seu_assento ? 'sua vez' : `vez de ${apelidoDe(e, f.vez)}`;
   } else if (f && f.fase === 'encerrada') {

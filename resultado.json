@@ -123,6 +123,11 @@
       "o_que": "recusar pedido de aumento em mão de onze como ação inválida, em vez de aplicar a derrota imediata que F-02 descreve",
       "porque": "numa mesa física falar é deliberado e a punição faz sentido; num cliente web o botão de truco é um pixel ao lado do da carta, e punir erro de clique com a partida inteira transforma etiqueta de mesa em perda de 12 pontos",
       "alternativa_descartada": "a derrota imediata literal de F-02 — divirjo de uma fonte conscientemente, e declaro em D-06 em vez de deixar a divergência só no código"
+    },
+    {
+      "o_que": "embarcar um subconjunto de 8,6 KB da Noto Sans Symbols 2 com os 41 glifos de carta",
+      "porque": "o bloco Unicode Playing Cards é coberto por poucas fontes de sistema — o macOS cobre, a maioria das instalações de Linux e Windows não. Descobri numa captura de tela do próprio jogo rodando no container: a mesa aparecia como caixas com o código hexadecimal dentro. O requisito do enunciado é que a carta TRAFEGUE como caractere Unicode, e isso vale com ou sem fonte; mas 'jogável' inclui o jogador conseguir ler a carta",
+      "alternativa_descartada": "depender da fonte do sistema e declarar como risco — descartada porque o defeito atinge a maioria dos usuários, não uma borda. Também descartada a fonte inteira (671 KB): o subconjunto de 41 glifos tem 1,3% do tamanho e desenha exatamente o mesmo. O pyftsubset rodou num container python descartável, não no host"
     }
   ],
   "previsoes": [
