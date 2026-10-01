@@ -1,0 +1,8 @@
+{
+  "name": "truco-e2e",
+  "private": true,
+  "description": "Teste de front do truco paulista num navegador real. Ver decisao D-12 no repo de pesquisa.",
+  "devDependencies": {
+    "@playwright/test": "1.56.0"
+  }
+}

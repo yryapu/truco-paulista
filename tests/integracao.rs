@@ -790,3 +790,54 @@ async fn extrato_mostra_o_ledger_do_proprio_jogador() {
     let soma: i64 = l.iter().map(|x| x["delta"].as_i64().unwrap()).sum();
     assert_eq!(soma, 930, "o saldo e a soma do ledger");
 }
+
+/// Regressão: voltar para a própria mesa não pode exigir saldo de novo.
+///
+/// O bug: `entrar` conferia saldo **antes** de ver se o jogador já estava sentado. Quem saía
+/// para o lobby no meio da partida era cobrado por uma aposta já paga — e com aposta acima da
+/// metade do saldo (1000 − aposta < aposta) recebia "saldo insuficiente" e ficava trancado
+/// fora do próprio jogo. Achado pelo teste de front, porque ele usa aposta **aleatória**;
+/// aposta fixa nunca teria pegado.
+#[tokio::test]
+async fn voltar_para_a_propria_mesa_nao_exige_saldo_outra_vez() {
+    let app = subir().await;
+    let ana = app.cadastrar("ana").await;
+    let bia = app.cadastrar("bia").await;
+    // Mais da metade do saldo: é a faixa em que o bug aparecia.
+    const APOSTA: i64 = 700;
+
+    let mesa = app.sentar(&ana, "1x1", APOSTA).await;
+    assert_eq!(app.sentar(&bia, "1x1", APOSTA).await, mesa);
+    assert_eq!(
+        app.get("/api/eu", &ana).await["saldo"],
+        300,
+        "a aposta ja foi paga"
+    );
+
+    // Agora o saldo (300) é menor que a aposta (700). Voltar tem de funcionar.
+    let (s, v) = app
+        .post(
+            "/api/mesas",
+            &ana,
+            serde_json::json!({"modo":"1x1","aposta":APOSTA}),
+        )
+        .await;
+    assert_eq!(s, 200, "voltar para a propria mesa foi recusado: {v}");
+    assert_eq!(v["mesa"].as_i64(), Some(mesa), "voltou para outra mesa");
+    assert_eq!(
+        app.get("/api/eu", &ana).await["saldo"],
+        300,
+        "voltar nao pode debitar de novo"
+    );
+
+    // E a recusa por saldo continua valendo para aposta NOVA, de quem não está em mesa.
+    let caio = app.cadastrar("caio").await;
+    let (s, v) = app
+        .post(
+            "/api/mesas",
+            &caio,
+            serde_json::json!({"modo":"1x1","aposta":5000}),
+        )
+        .await;
+    assert_eq!(s, 400, "a guarda de saldo tem de continuar de pe: {v}");
+}

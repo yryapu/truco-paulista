@@ -64,6 +64,7 @@ type R<T> = Result<T, Falha>;
 
 pub fn rotas(estado: Estado) -> Router {
     Router::new()
+        .route("/api/saude", get(saude))
         .route("/api/cadastrar", post(cadastrar))
         .route("/api/entrar", post(entrar))
         .route("/api/sair", post(sair))
@@ -77,6 +78,19 @@ pub fn rotas(estado: Estado) -> Router {
         .route("/ws", get(websocket))
         .fallback_service(ServeDir::new("web").fallback(ServeFile::new("web/index.html")))
         .with_state(estado)
+}
+
+/// Saúde do processo. Existe para o `healthcheck` do container ser um portão de verdade:
+/// sem ele, o compose declara "subiu" quando o PID existe, não quando o serviço responde.
+async fn saude(State(e): State<Estado>) -> R<Json<serde_json::Value>> {
+    // Toca o banco: um processo vivo com banco inacessível não está saudável.
+    sqlx::query("SELECT 1")
+        .fetch_one(&e.db)
+        .await
+        .map_err(anyhow::Error::from)?;
+    Ok(Json(
+        json!({ "ok": true, "jogo": "truco-paulista", "versao": env!("CARGO_PKG_VERSION") }),
+    ))
 }
 
 // ----- cadastro e sessão -----

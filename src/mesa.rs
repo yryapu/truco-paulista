@@ -277,14 +277,19 @@ impl Estado {
         if aposta < 0 {
             return Err(economia::ErroEconomia::ApostaNegativa.into());
         }
-        let saldo = economia::saldo(&self.db, jogador_id).await?;
-        if saldo < aposta {
-            return Err(economia::ErroEconomia::SaldoInsuficiente.into());
-        }
-
         let mut mesas = self.mesas.lock().await;
 
         // Já está sentado em algum lugar? Devolve a mesa dele em vez de abrir outra.
+        //
+        // **Esta checagem vem ANTES da de saldo, e a ordem é o conserto de um bug real.**
+        // Voltar para a própria mesa não é aposta nova: a aposta já foi paga quando a mesa
+        // encheu. Com a ordem invertida, quem passava pelo lobby no meio da partida era
+        // cobrado de novo e recebia "saldo insuficiente" — justamente porque o saldo dele já
+        // estava descontado do valor exigido. Ficava trancado fora do próprio jogo.
+        //
+        // O bug só aparecia com aposta acima da metade do saldo (1000 − aposta < aposta), e
+        // foi uma aposta **aleatória** no teste de front que o revelou. Aposta fixa nunca o
+        // teria achado: passava ou falhava sempre, e eu escolhi um valor que passava.
         if let Some(id) = mesas
             .values()
             .find(|m| {
@@ -294,6 +299,12 @@ impl Estado {
             .map(|m| m.id)
         {
             return Ok(id);
+        }
+
+        // Só agora o saldo, porque só agora há aposta nova para pagar.
+        let saldo = economia::saldo(&self.db, jogador_id).await?;
+        if saldo < aposta {
+            return Err(economia::ErroEconomia::SaldoInsuficiente.into());
         }
 
         let alvo = mesas

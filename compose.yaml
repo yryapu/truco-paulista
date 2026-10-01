@@ -1,0 +1,48 @@
+# `docker compose up -d --build` sobe o jogo em http://localhost:8411
+# `docker compose --profile teste run --rm e2e` roda o teste de front
+
+services:
+  truco:
+    build: .
+    container_name: truco-paulista
+    # Publica só em 127.0.0.1: um servidor de jogo em desenvolvimento não precisa estar
+    # alcançável na rede local, e o padrão do Docker (0.0.0.0) é mais do que foi pedido.
+    ports:
+      - "127.0.0.1:8411:8080"
+    volumes:
+      - dados:/dados
+    # Endurecimento barato: nada disto custa capacidade para este serviço.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/api/saude"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 3s
+    restart: unless-stopped
+
+  e2e:
+    # Imagem oficial do Playwright: já traz as dependências de sistema dos navegadores.
+    # Roda em container porque o `node` deste host está quebrado (libllhttp ausente) — e
+    # porque teste de front que depende do navegador do desenvolvedor não é reprodutível.
+    image: mcr.microsoft.com/playwright:v1.56.0-noble
+    profiles: ["teste"]
+    depends_on:
+      truco:
+        condition: service_healthy
+    environment:
+      BASE_URL: "http://truco:8080"
+      CI: "1"
+    volumes:
+      - ./e2e:/e2e
+    working_dir: /e2e
+    command: ["sh", "-c", "npm install --no-audit --no-fund && npx playwright test"]
+
+volumes:
+  dados:
