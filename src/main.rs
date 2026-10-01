@@ -17,6 +17,16 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or(8080);
 
     let pool = db::abrir(&url).await?;
+
+    // Antes de aceitar qualquer conexão: devolve as apostas de partidas que o reinício
+    // anterior deixou pelo caminho. Sem isto, moeda debitada numa partida interrompida
+    // ficava presa para sempre. Ver `economia::recuperar_partidas_orfas`.
+    match truco::economia::recuperar_partidas_orfas(&pool).await {
+        Ok(0) => {}
+        Ok(n) => tracing::warn!("{n} partida(s) orfa(s) encerrada(s) com estorno das apostas"),
+        Err(e) => tracing::error!("nao consegui recuperar partidas orfas: {e:#}"),
+    }
+
     let estado = Estado::novo(pool);
     let app = api::rotas(estado).layer(tower_http::trace::TraceLayer::new_for_http());
 

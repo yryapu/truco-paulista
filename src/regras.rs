@@ -272,6 +272,39 @@ pub struct Mao {
     pub bloqueada: Option<Equipe>,
 }
 
+/// De onde vem a aleatoriedade do embaralhamento.
+///
+/// **A distinção existe por um defeito que eu tinha.** A primeira versão fazia
+/// `ChaCha8Rng::seed_from_u64(rand::random())` e **reusava o mesmo RNG pela partida inteira**.
+/// Isso põe todas as mãos de uma partida sob 64 bits de semente: quem vê a primeira mão pode
+/// buscar a semente que a produz e, achando, **prevê todas as mãos seguintes**. Num jogo onde
+/// se aposta, isso não é lacuna de feature — é o jogo não ser jogo.
+///
+/// Em produção cada mão é embaralhada por `rand::rng()`, que é um CSPRNG semeado pelo sistema
+/// operacional e que se re-semeia; não há semente curta para buscar, e a primeira mão não diz
+/// nada sobre a segunda. A semente fixa sobrevive **só** para teste, onde reprodutibilidade é
+/// o objetivo e não há adversário.
+#[derive(Debug, Clone)]
+enum Embaralhador {
+    /// Produção: entropia do sistema, nova a cada mão.
+    Sistema,
+    /// Teste: sequência reproduzível a partir de uma semente.
+    ///
+    /// `Box` porque o estado do ChaCha é grande (~136 bytes) ao lado da variante unitária, e
+    /// `Partida` é clonada; sem o box, toda partida de produção carregaria o tamanho do RNG
+    /// que ela não usa.
+    Reprodutivel(Box<ChaCha8Rng>),
+}
+
+impl Embaralhador {
+    fn embaralhar(&mut self, cartas: &mut [Carta]) {
+        match self {
+            Embaralhador::Sistema => cartas.shuffle(&mut rand::rng()),
+            Embaralhador::Reprodutivel(r) => cartas.shuffle(r.as_mut()),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Partida {
     pub modo: Modo,
@@ -281,30 +314,39 @@ pub struct Partida {
     pub mao: Mao,
     pub vencedora: Option<Equipe>,
     pub numero_da_mao: u32,
-    rng: ChaCha8Rng,
+    /// Nome longo de propósito: `embaralhador` (sem sufixo) é o **assento** que distribui.
+    embaralhador_rng: Embaralhador,
 }
 
 impl Partida {
-    /// Nova partida. A semente existe para o teste ser reprodutível; em produção vem de
-    /// `rand::rng()`, ver `Partida::nova`.
+    /// Partida reproduzível a partir de uma semente. **Para teste.**
+    ///
+    /// Não use em jogo valendo saldo: semente curta é previsível, ver [`Embaralhador`].
     pub fn com_semente(modo: Modo, semente: u64) -> Self {
-        let mut rng = ChaCha8Rng::seed_from_u64(semente);
+        Self::construir(
+            modo,
+            Embaralhador::Reprodutivel(Box::new(ChaCha8Rng::seed_from_u64(semente))),
+        )
+    }
+
+    /// Partida de verdade: cada mão embaralhada com entropia do sistema operacional.
+    pub fn nova(modo: Modo) -> Self {
+        Self::construir(modo, Embaralhador::Sistema)
+    }
+
+    fn construir(modo: Modo, mut emb: Embaralhador) -> Self {
         // D-01: o embaralhador da primeira mão é o assento 0, e o "mão" é o seguinte.
-        let embaralhador = 0;
-        let mao = distribuir(modo, embaralhador, Especial::Normal, 1, &mut rng);
+        let dealer = 0;
+        let mao = distribuir(modo, dealer, Especial::Normal, 1, &mut emb);
         Partida {
             modo,
             pontos: [0, 0],
-            embaralhador,
+            embaralhador: dealer,
             mao,
             vencedora: None,
             numero_da_mao: 1,
-            rng,
+            embaralhador_rng: emb,
         }
-    }
-
-    pub fn nova(modo: Modo) -> Self {
-        Self::com_semente(modo, rand::random())
     }
 
     pub fn jogadores(&self) -> usize {
@@ -337,7 +379,13 @@ impl Partida {
             // R-10 e R-11: a mão especial já nasce valendo 3.
             _ => 3,
         };
-        self.mao = distribuir(self.modo, self.embaralhador, especial, valor, &mut self.rng);
+        self.mao = distribuir(
+            self.modo,
+            self.embaralhador,
+            especial,
+            valor,
+            &mut self.embaralhador_rng,
+        );
         Some(self.evento_de_abertura())
     }
 
@@ -614,11 +662,11 @@ fn distribuir(
     embaralhador: Assento,
     especial: Especial,
     valor: u8,
-    rng: &mut ChaCha8Rng,
+    emb: &mut Embaralhador,
 ) -> Mao {
     let n = modo.jogadores();
     let mut b = baralho();
-    b.shuffle(rng);
+    emb.embaralhar(&mut b);
     let cartas: Vec<Vec<Carta>> = (0..n).map(|i| b[i * 3..i * 3 + 3].to_vec()).collect();
     let vira = b[n * 3];
     // D-01: a primeira rodada é puxada por quem está à esquerda do embaralhador.
@@ -1221,5 +1269,70 @@ mod testes {
         let mut p = Partida::com_semente(Modo::UmVsUm, 1);
         p.vencedora = Some(0);
         assert_eq!(p.aplicar(0, Acao::Pedir), Err(Erro::PartidaEncerrada));
+    }
+}
+
+#[cfg(test)]
+mod testes_do_embaralhamento {
+    use super::*;
+    use std::collections::HashSet;
+
+    /// `com_semente` continua reproduzível — é dela que os testes de regra dependem.
+    #[test]
+    fn semente_igual_da_distribuicao_igual() {
+        let a = Partida::com_semente(Modo::DoisVsDois, 42);
+        let b = Partida::com_semente(Modo::DoisVsDois, 42);
+        assert_eq!(a.mao.cartas, b.mao.cartas);
+        assert_eq!(a.mao.vira, b.mao.vira);
+        let c = Partida::com_semente(Modo::DoisVsDois, 43);
+        assert_ne!(
+            a.mao.cartas, c.mao.cartas,
+            "sementes diferentes, maos diferentes"
+        );
+    }
+
+    /// A partida de verdade não repete distribuição.
+    ///
+    /// **Honestidade sobre o que este teste prova e o que não prova:** ele prova
+    /// não-degenerescência — que `nova` não está devolvendo sempre o mesmo baralho, que é o
+    /// modo de falha que um teste consegue ver. Ele **não** prova imprevisibilidade; nenhum
+    /// teste unitário prova isso. A imprevisibilidade vem de um argumento, não de uma
+    /// asserção: `rand::rng()` é um CSPRNG semeado pelo sistema operacional e re-semeado, e
+    /// cada mão é embaralhada por ele — então não existe semente curta para buscar, e a mão
+    /// de agora não determina a próxima. Ver o doc de [`Embaralhador`].
+    #[test]
+    fn partida_de_verdade_nao_repete_distribuicao() {
+        let mut vistas: HashSet<Vec<Vec<Carta>>> = HashSet::new();
+        for _ in 0..60 {
+            vistas.insert(Partida::nova(Modo::UmVsUm).mao.cartas);
+        }
+        assert!(
+            vistas.len() >= 58,
+            "60 partidas novas deram só {} distribuições distintas",
+            vistas.len()
+        );
+    }
+
+    /// Mãos consecutivas da MESMA partida também não repetem — era aqui que a semente de 64
+    /// bits mordia: um RNG só para a partida inteira amarra todas as mãos a ela.
+    #[test]
+    fn maos_consecutivas_da_mesma_partida_diferem() {
+        let mut p = Partida::nova(Modo::UmVsUm);
+        let mut vistas: HashSet<Vec<Vec<Carta>>> = HashSet::new();
+        for _ in 0..12 {
+            vistas.insert(p.mao.cartas.clone());
+            p.mao.fase = Fase::Encerrada {
+                vencedora: None,
+                pontos: 0,
+            };
+            if p.proxima_mao().is_none() {
+                break;
+            }
+        }
+        assert!(
+            vistas.len() >= 10,
+            "mãos da mesma partida repetiram: {}",
+            vistas.len()
+        );
     }
 }

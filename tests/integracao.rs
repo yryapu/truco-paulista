@@ -19,6 +19,9 @@ use truco::cartas::{baralho, Carta};
 struct App {
     base: String,
     cliente: reqwest::Client,
+    /// Exposto para o teste poder chamar rotina de manutenção (recuperação de órfãs) que não
+    /// tem rota HTTP — ela roda no início do processo, não a pedido.
+    pool: sqlx::SqlitePool,
 }
 
 async fn subir() -> App {
@@ -26,6 +29,7 @@ async fn subir() -> App {
     let arq = std::env::temp_dir().join(format!("truco-teste-{}.db", rand::random::<u64>()));
     let url = format!("sqlite://{}", arq.display());
     let pool = truco::db::abrir(&url).await.expect("banco");
+    let pool_do_teste = pool.clone();
     let estado = truco::mesa::Estado::novo(pool);
     let app = truco::api::rotas(estado);
     let l = TcpListener::bind("127.0.0.1:0").await.expect("porta");
@@ -38,6 +42,7 @@ async fn subir() -> App {
     App {
         base: format!("http://127.0.0.1:{porta}"),
         cliente: reqwest::Client::new(),
+        pool: pool_do_teste,
     }
 }
 
@@ -840,4 +845,67 @@ async fn voltar_para_a_propria_mesa_nao_exige_saldo_outra_vez() {
         )
         .await;
     assert_eq!(s, 400, "a guarda de saldo tem de continuar de pe: {v}");
+}
+
+/// Partida interrompida por reinício do processo devolve as apostas em vez de sumir com elas.
+///
+/// Este é o caminho que nenhum dos meus outros testes tocava: todos seguiam o caminho feliz
+/// até alguém fazer 12. A aposta sai do saldo quando a mesa enche; se o processo morre antes
+/// do prêmio, a moeda ficava debitada **para sempre**, sem vencedor e sem devolução.
+#[tokio::test]
+async fn partida_orfa_por_reinicio_devolve_as_apostas() {
+    let app = subir().await;
+    let ana = app.cadastrar("ana").await;
+    let bia = app.cadastrar("bia").await;
+    const APOSTA: i64 = 250;
+
+    app.sentar(&ana, "1x1", APOSTA).await;
+    app.sentar(&bia, "1x1", APOSTA).await;
+    assert_eq!(
+        app.get("/api/eu", &ana).await["saldo"],
+        750,
+        "aposta debitada"
+    );
+    assert_eq!(app.get("/api/eu", &bia).await["saldo"], 750);
+
+    // Simula o reinício: o estado da mesa vive em memória, então o que sobra é a linha
+    // `em_curso` no banco — exatamente o que um processo novo encontraria.
+    let n = truco::economia::recuperar_partidas_orfas(&app.pool)
+        .await
+        .expect("recuperacao");
+    assert_eq!(n, 1, "uma partida orfa a recuperar");
+
+    assert_eq!(
+        app.get("/api/eu", &ana).await["saldo"],
+        1000,
+        "a aposta tem de voltar"
+    );
+    assert_eq!(app.get("/api/eu", &bia).await["saldo"], 1000);
+
+    // O extrato mostra de onde a moeda voltou: ledger explica, coluna não explicaria.
+    let e: Value = app.get("/api/extrato", &ana).await;
+    assert_eq!(e[0]["motivo"], "estorno");
+    assert_eq!(e[0]["delta"], APOSTA);
+
+    // E a partida abandonada não entra no histórico de ninguém: não foi jogada até o fim.
+    let rank: Value = app.get("/api/ranking", &ana).await;
+    for l in rank.as_array().unwrap() {
+        assert_eq!(
+            l["partidas"], 0,
+            "partida abandonada nao conta como historico"
+        );
+        assert_eq!(l["vitorias"], 0);
+        assert_eq!(l["emblema_historico"], "Sem Histórico");
+    }
+
+    // Rodar de novo não devolve duas vezes.
+    let n = truco::economia::recuperar_partidas_orfas(&app.pool)
+        .await
+        .unwrap();
+    assert_eq!(n, 0, "a recuperacao tem de ser idempotente");
+    assert_eq!(
+        app.get("/api/eu", &ana).await["saldo"],
+        1000,
+        "estorno dobrado"
+    );
 }

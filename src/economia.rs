@@ -128,6 +128,44 @@ pub async fn pagar_vencedores(
     Ok(())
 }
 
+/// Devolve as apostas de partidas que ficaram `em_curso` quando o processo morreu.
+///
+/// **Fecha um caminho onde o dinheiro simplesmente desaparecia.** A aposta é debitada quando a
+/// mesa enche, e o prêmio é pago quando alguém faz 12. O estado da mesa vive em memória: se o
+/// processo reinicia no meio, não há partida para terminar — e as moedas dos dois (ou quatro)
+/// ficavam debitadas para sempre, sem vencedor e sem devolução. Nenhum teste pegava, porque
+/// todos os meus testes seguiam o caminho feliz até o fim.
+///
+/// Roda no início do processo, antes de aceitar conexão. A partida vira `abandonada`, que o
+/// ranking não conta nem como vitória nem como derrota: ninguém jogou essa partida até o fim,
+/// então ela não é histórico de ninguém.
+pub async fn recuperar_partidas_orfas(pool: &SqlitePool) -> anyhow::Result<usize> {
+    let orfas: Vec<(i64, i64)> =
+        sqlx::query_as("SELECT id, aposta FROM partida WHERE estado = 'em_curso'")
+            .fetch_all(pool)
+            .await?;
+    let total = orfas.len();
+    for (id, aposta) in orfas {
+        let jogadores: Vec<(i64,)> =
+            sqlx::query_as("SELECT jogador_id FROM participacao WHERE partida_id = ?")
+                .bind(id)
+                .fetch_all(pool)
+                .await?;
+        let ids: Vec<i64> = jogadores.into_iter().map(|(j,)| j).collect();
+        estornar(pool, id, &ids, aposta).await?;
+        sqlx::query("UPDATE partida SET estado = 'abandonada', encerrada_em = ? WHERE id = ?")
+            .bind(agora())
+            .bind(id)
+            .execute(pool)
+            .await?;
+        tracing::warn!(
+            "partida {id} ficou orfa; {} aposta(s) de {aposta} devolvida(s)",
+            ids.len()
+        );
+    }
+    Ok(total)
+}
+
 /// Devolve a aposta quando a mesa se desfaz antes de começar.
 pub async fn estornar(
     pool: &SqlitePool,
