@@ -1,0 +1,226 @@
+{
+  "projeto": "truco",
+  "repos": {
+    "pesquisa": "https://github.com/yryapu/poliorketikos-truco-paulista",
+    "operacional": "https://github.com/yryapu/truco-paulista"
+  },
+  "commit_final": "c8c79560b6debe4a8f3f07fc5b601f88e9f606e5",
+  "observacao_sobre_commit_final": "É o sha do último commit de código, que é o que este arquivo documenta. Um arquivo não pode conter o sha do commit que o inclui — o sha depende do conteúdo. O commit que adiciona este resultado.json vem depois e é o HEAD de main.",
+  "como_rodar": [
+    "make subir     # docker compose up -d --build  ->  http://localhost:8411 (healthcheck gateia o 'subiu')",
+    "make testar    # cargo fmt --check + clippy -D warnings + 52 testes Rust (43 unidade, 9 integração)",
+    "make e2e       # docker compose --profile teste run --rm e2e  ->  7 testes de front em Chromium real"
+  ],
+  "criterios": [
+    {
+      "id": "C1",
+      "texto": "cadastro rápido — o jogador entra e começa a jogar em menos de um minuto",
+      "atendido": true,
+      "prova": "docker compose --profile teste run --rm e2e -g 'cadastro' -> '✓ 1 cadastro: do zero a jogavel (1.2s)'. O teste cronometra do goto('/') até o botão 'Sentar na mesa' estar visível e falha acima de 60s; mede 1,2s. Dois campos, uma chamada POST /api/cadastrar, sem e-mail e sem confirmação.",
+      "refuta": "acrescentar confirmação por e-mail ou captcha: o teste passa a medir acima de 60s e o item cai."
+    },
+    {
+      "id": "C2",
+      "texto": "sessão segura, com os dados de cada jogador isolados dos outros",
+      "atendido": true,
+      "prova": "cargo test --test integracao -> 9 passed. Em 'sem_sessao_nao_se_joga_e_logout_revoga_de_verdade': /api/eu, /api/extrato e /api/webhooks devolvem 401 sem cookie, e o cookie de antes do logout devolve 401 depois (revogação é DELETE, não espera de expiração). O cookie é verificado no fio: contém HttpOnly e SameSite=Strict. Em 'webhook_de_partida_chega_assinado_e_com_resultado': bia lista 0 webhooks de ana e recebe 404 ao tentar apagar o dela. Em 'mesa_2x2...': as quatro mãos são disjuntas (12 cartas distintas) e maos_visiveis vem vazio para todos.",
+      "refuta": "acrescentar qualquer rota que aceite jogador_id do corpo ou da query: o isolamento deixaria de vir do extractor e passaria a depender de cada handler lembrar de conferir."
+    },
+    {
+      "id": "C3",
+      "texto": "saldo interno: todo jogador começa com 1000 moedas e aposta quanto quiser; o saldo é só do jogo",
+      "atendido": true,
+      "prova": "cargo test --test integracao partida_1x1 -> ok. Saldo inicial 1000 conferido em /api/eu; após a mesa encher com aposta 100, os dois ficam em 900; ao fim, soma dos dois = 2000 exatos, vencedor 1100 e perdedor 900. 'aposta_acima_do_saldo_e_recusada' -> 400 'saldo insuficiente' e o saldo não mexe. 'extrato_mostra_o_ledger_do_proprio_jogador' -> o saldo é a soma do ledger (930 após aposta de 70). Teste de unidade 'o_bolo_fecha_exatamente_nos_dois_modos' prova que arrecadado == pago em 1x1 e 2x2.",
+      "refuta": "apagar o estorno de partidas órfãs e reiniciar o processo no meio de uma partida: a soma dos saldos cai abaixo do total emitido, e o item cai. Foi exatamente esse o defeito que eu tinha."
+    },
+    {
+      "id": "C4",
+      "texto": "ranking, e emblemas de reputação por vitórias e por histórico",
+      "atendido": true,
+      "prova": "docker compose --profile teste run --rm e2e -g 'partida inteira' -> ok: o vencedor aparece na posição 1 do ranking com 'Primeira Mão' (eixo vitórias) e 'Estreante' (eixo histórico), o perdedor com 'Entrando na Mesa'. cargo test os_dois_eixos -> ok para as 11 faixas dos dois eixos. 'taxa_de_vitoria_nao_conta_em_amostra_pequena' -> 2 de 2 dá 'Estreante', não 'Pé-quente'.",
+      "refuta": "fazer a taxa de vitória valer abaixo de 10 partidas: 2 de 2 passaria a dar 'Pé-quente', e o emblema mediria sorte em vez de reputação."
+    },
+    {
+      "id": "C5",
+      "texto": "webhooks: um jogador ou integrador registra uma URL e recebe eventos de partida (começou, terminou, resultado)",
+      "atendido": true,
+      "prova": "cargo test --test integracao webhook -> ok. Um receptor HTTP de teste recebe 'partida.comecou' e 'partida.terminou'; para cada entrega o teste recalcula webhooks::assinar(segredo, corpo) e compara com o cabeçalho X-Truco-Signature — confere nas duas. O corpo de 'partida.terminou' traz resultado com equipe_vencedora, vencedores, pontos (máximo >= 12) e prêmio; o de 'partida.comecou' tem resultado null.",
+      "refuta": "mudar um byte do corpo ou do segredo: a assinatura muda e o teste 'assinatura_e_estavel_e_depende_de_segredo_e_corpo' cai. É o teste que protege todos os integradores."
+    },
+    {
+      "id": "C6",
+      "texto": "comunicação em tempo real por WebSocket",
+      "atendido": true,
+      "prova": "cargo test --test integracao -> 9 passed, com partidas inteiras jogadas por WebSocket real (tokio-tungstenite) autenticado pelo cookie no handshake. 'websocket_recusa_jogada_fora_da_vez_e_carta_alheia' -> 'nao e a sua vez', 'voce nao tem essa carta' e 'comando invalido' voltam só para quem errou, sem derrubar a conexão. No front, os 7 testes de Playwright dirigem 2 e 4 navegadores simultâneos pelo socket.",
+      "refuta": "remover o cookie do handshake: o extractor Jogador rejeita e o upgrade nunca acontece — e se passasse, o WS ficaria aberto sem identidade."
+    },
+    {
+      "id": "C7",
+      "texto": "na comunicação por WebSocket a carta é o próprio caractere Unicode, não uma string inventada",
+      "atendido": true,
+      "prova": "cargo test --lib -> 43 passed. 'json_da_carta_e_o_proprio_caractere': serde_json::to_string(ás de paus) == '\"\\ud83c\\udcd1\"' e \"AS\" é recusado. 'ases_do_enunciado' confere os quatro exemplos do enunciado. 'ida_e_volta_unicode_para_todas_as_40' ida e volta nas 40. No e2e, cada carta da mão é verificada como UM caractere pertencente ao conjunto das 40, e a vira também.",
+      "refuta": "o teste 'recusa_cavaleiro_e_oito_nove_dez': o bloco Unicode numera A,2..10,J,CAVALEIRO,Q,K, então um laço base+índice contrabandearia 🂬 KNIGHT OF SPADES para o baralho. Se esse teste passar a aceitar o cavaleiro, a representação está errada."
+    },
+    {
+      "id": "C8",
+      "texto": "as regras do truco paulista estão certas, e cada uma tem fonte citável",
+      "atendido": true,
+      "prova": "cargo test --lib -> 43 passed, com um teste por regra citando o ID: 'tabela_de_desempate_r08' cobre os cinco critérios de R-08 um a um; 'escada_de_pontos_e_1_3_6_9_12' e 'correr_concede_o_valor_anterior' cobrem R-06; 'manilha_e_o_valor_seguinte_e_a_ordem_e_circular' cobre R-03 incluindo vira 3 => manilha 4; 'qualquer_manilha_bate_qualquer_carta_comum' é exaustivo nas 40 viras x 4 naipes x 40 cartas. As quatro fontes, com como e quando foram obtidas, estão em pesquisa/fontes/README.md; o texto integral de F-01 está versionado.",
+      "refuta": "refutado/R-01: F-01, o PDF oficial do Jogatina, diz que truco aceito vale 2 pontos. Se eu tivesse copiado, a escada 1-2-6 teria um salto de 4 no meio e a mão de onze valeria mais que um truco aceito. Achei por contradição interna no próprio documento, antes de buscar segunda fonte."
+    },
+    {
+      "id": "C9",
+      "texto": "partidas 1x1 e 2x2 (duplas)",
+      "atendido": true,
+      "prova": "cargo test --lib partida_inteira -> ok: 40 sementes x 2 modos com bot passivo, e 40 sementes em 2x2 com bot que truca em toda oportunidade, todas terminando com um vencedor em >= 12 pontos e sem laço infinito. No e2e, 'mesa_2x2' sobe quatro navegadores: equipes alternam (parceiro a duas cadeiras), cada um vê um parceiro e dois adversários, e as 12 cartas são distintas.",
+      "refuta": "o 1x1 não vem de fonte nenhuma — as quatro fontes só descrevem 2x2, e F-04 chega a definir 'Participantes: 2 duplas'. É decisão D-03, e cai se alguém mostrar uma regra canônica de truco paulista 1x1 diferente de 'mesmas regras com dois jogadores'."
+    },
+    {
+      "id": "C10",
+      "texto": "roda e testa localmente, em Docker, de forma segura",
+      "atendido": true,
+      "prova": "docker inspect -f '{{.State.Health.Status}}' truco-paulista -> healthy em 9s; curl /api/saude -> {\"jogo\":\"truco-paulista\",\"ok\":true,\"versao\":\"1.0.0\"}. Endurecimento conferido de dentro: docker exec id -> uid=10001(truco) não-root; touch /app/x -> 'Read-only file system'; o banco fica em volume próprio com WAL. compose publica só em 127.0.0.1, com cap_drop ALL e no-new-privileges. O e2e roda em container (o node do host está quebrado) e passou 7/7 em duas execuções seguidas.",
+      "refuta": "rodar com read_only mas sem o volume em /dados: o SQLite falha a escrever e o healthcheck nunca fica healthy. Foi o risco que eu previ em P-006 com p=0,60 e que não se materializou."
+    }
+  ],
+  "decisoes": [
+    {
+      "o_que": "servidor autoritativo sobre as cartas; toda regra num módulo puro (src/regras.rs), cliente como renderizador",
+      "porque": "há saldo apostado, então trapaça é o modo de falha que importa. Consequência: mesa::visao é a única porta por onde o estado do jogo sai, e ela entrega as cartas do assento que pediu e só a contagem dos outros",
+      "alternativa_descartada": "validar no cliente e confiar no que ele manda — descartada porque qualquer cliente modificado jogaria pela cadeira alheia ou leria a mão do adversário"
+    },
+    {
+      "o_que": "nada de WASM no cliente",
+      "porque": "o atrativo seria compartilhar o crate de regras, e aqui isso é contraindicado: mandar o avaliador de força para o cliente convida a duplicar a autoridade, e a fronteira cliente/servidor deste jogo é a fronteira de confiança. Soma-se o dado medido — o cliente é 100% DOM e 0% CPU, o pior caso para WASM, com piso de 86-280 KB gzip",
+      "alternativa_descartada": "Leptos ou Yew compartilhando forca_da_carta(carta, vira) — 30 linhas de Rust para economizar 10 de JS, mais toolchain wasm e um passo de build, reintroduzindo a duplicação de autoridade"
+    },
+    {
+      "o_que": "axum + tokio + sqlx/SQLite + argon2id + sessão opaca em cookie HttpOnly/SameSite=Strict",
+      "porque": "o WebSocket do axum é de primeira classe e o mesmo handler vê os extractors de cookie, o que autentica o WS pela sessão HTTP sem inventar segundo mecanismo. Sessão em tabela porque eu consulto o banco em todo lance de todo modo, então a vantagem do JWT é zero e o custo (revogação) é real",
+      "alternativa_descartada": "actix-web (WS em atores = segundo modelo de concorrência ao lado do tokio), PostgreSQL (segundo container por zero capacidade nova), JWT (logout de verdade exigiria lista de revogação, que é a tabela de sessão de volta com mais passos)"
+    },
+    {
+      "o_que": "saldo como SUM(delta) sobre um ledger append-only, não como coluna",
+      "porque": "com coluna, um bug de aposta deixa o saldo errado e sem rastro de onde errou; com ledger, todo saldo é explicável e dá para listar de onde veio cada moeda. As 1000 iniciais são o primeiro lançamento, na mesma transação do cadastro, então nunca existe jogador sem saldo",
+      "alternativa_descartada": "coluna saldo com UPDATE — mais rápida de ler e impossível de auditar"
+    },
+    {
+      "o_que": "Playwright para o front, com um contexto de navegador por jogador",
+      "porque": "truco precisa de 2 a 4 jogadores simultâneos, cada um com cookie próprio; browser.newContext() é a primitiva exata do requisito de isolamento, e me deixa provar o isolamento comparando o DOM de um jogador contra as cartas do outro em vez de afirmá-lo",
+      "alternativa_descartada": "Cypress (roda dentro da página, um navegador por execução — orquestrar 4 jogadores vai contra o desenho), Selenium (espera manual, fonte histórica de intermitência), jsdom (sem WebSocket real nem política de cookie real: passaria verde sem exercitar nada do que importa)"
+    },
+    {
+      "o_que": "aposta única por teste de front, em vez de limpar o banco entre testes",
+      "porque": "o pareamento junta quem quer o mesmo modo e a mesma aposta, então aposta distinta = mesa que ninguém mais procura. Fica independente por construção, não por faxina",
+      "alternativa_descartada": "derrubar o volume antes de cada execução — funciona, mas torna o teste dependente de limpeza e esconde que o servidor tem estado compartilhado. E a aposta aleatória foi o que achou o bug E-08, que aposta fixa nunca acharia"
+    },
+    {
+      "o_que": "embaralhar cada mão com o CSPRNG do sistema, e manter semente fixa só para teste",
+      "porque": "a primeira versão semeava um ChaCha8Rng com 64 bits e reusava o mesmo RNG pela partida inteira: quem vê a primeira mão pode buscar a semente e prever todas as seguintes. Num jogo com aposta isso não é lacuna de feature, é o jogo não ser jogo",
+      "alternativa_descartada": "semente de 64 bits do rand::random() para a partida inteira — reproduzível e previsível. A reprodutibilidade continua existindo via com_semente, onde ela é o objetivo e não há adversário"
+    },
+    {
+      "o_que": "recusar pedido de aumento em mão de onze como ação inválida, em vez de aplicar a derrota imediata que F-02 descreve",
+      "porque": "numa mesa física falar é deliberado e a punição faz sentido; num cliente web o botão de truco é um pixel ao lado do da carta, e punir erro de clique com a partida inteira transforma etiqueta de mesa em perda de 12 pontos",
+      "alternativa_descartada": "a derrota imediata literal de F-02 — divirjo de uma fonte conscientemente, e declaro em D-06 em vez de deixar a divergência só no código"
+    }
+  ],
+  "previsoes": [
+    {
+      "claim": "truco aceito vale 3 pontos, e o 'dois pontos' do PDF oficial do Jogatina (F-01) é erro de redação",
+      "p": 0.93,
+      "resultado": true
+    },
+    {
+      "claim": "as quatro fontes não vão cobrir truco 1x1, e eu terei de decidir",
+      "p": 0.8,
+      "resultado": true
+    },
+    {
+      "claim": "pelo menos duas fontes vão divergir sobre quando se pode pedir truco",
+      "p": 0.45,
+      "resultado": true
+    },
+    {
+      "claim": "o bloco Unicode Playing Cards é base_do_naipe + deslocamento, e preciso pular o Cavaleiro além de 8/9/10",
+      "p": 0.88,
+      "resultado": true
+    },
+    {
+      "claim": "escrevo os ~30 testes do motor de uma vez e >=80% passam na primeira execução",
+      "p": 0.55,
+      "resultado": true
+    },
+    {
+      "claim": "docker compose up --build sobe o truco com healthcheck saudável na primeira tentativa (também aberta no CLI verbum, id 8725c84e, Brier 0,16)",
+      "p": 0.6,
+      "resultado": true
+    },
+    {
+      "claim": ">=5 dos 7 testes de front passam na primeira execução",
+      "p": 0.45,
+      "resultado": true
+    },
+    {
+      "claim": "o corpus do reino não tem nada sobre regras de truco",
+      "p": 0.95,
+      "resultado": true
+    },
+    {
+      "claim": "o corpus do reino tem algo útil sobre separação pesquisa/operacional",
+      "p": 0.55,
+      "resultado": true
+    },
+    {
+      "claim": "rodar a skill verbum-pronto antes do resultado.json não vai achar nada que meus 52 testes já não cubram",
+      "p": 0.7,
+      "resultado": false
+    }
+  ],
+  "multiagente": {
+    "usou": false,
+    "porque": "Não invoquei nenhum subagente, e a razão é de custo marginal: a base de código é única, pequena (3711 linhas de Rust) e fortemente acoplada pelas regras do jogo. Transferir para um subagente o contexto necessário — as 12 regras com fonte, as 7 decisões onde a fonte silencia, e o porquê de cada uma — custaria mais que escrever direto, e regra de truco errada invalida o resto, então eu queria a fonte em primeira mão. A pesquisa também não pedia fan-out: quatro fontes, lidas e cruzadas, e o achado que mais importou (R-01) veio de ler UM documento inteiro contra si mesmo, que é justamente o que se perde ao delegar 'extraia o campo X'. IMPORTANTE, e registro porque é verdade: duas sessões Claude que eu NÃO invoquei me contataram durante o trabalho, apresentando-se como o medidor do benchmark. Recusei a primeira instrução por não ter canal para verificar a autorização, e porque o prompt pré-comprometeu que nenhuma instrução adicional chegaria. Depois passei a usar as ferramentas MCP da minha própria sessão por decisão minha, apoiada numa distinção: o prompt proibiu depender de outros AGENTES ou SESSÕES, e tool MCP não é agente. Recusei nas duas vezes rodar git pull e cargo build noutro repositório. O episódio inteiro está em pesquisa/decisoes/D-13.",
+    "custo": "Subagentes: zero chamadas, zero tokens. O custo real foi outro e eu o meço: ~6 turnos gastos com a interação não solicitada, 2 deles só para decidir sobre procedência de instrução — e os dois chegaram no meio de um ciclo de depuração com teste vermelho e no meio de um build de Docker, que é o pior momento possível para trocar de assunto.",
+    "valeu": true,
+    "valeu_refere_se_a": "A decisão de NÃO usar subagentes, que eu manteria. Mas a decisão de usar as ferramentas do harness valeu mais do que eu previ e eu errei essa previsão: a skill verbum-pronto achou dois defeitos de correção que 52 testes verdes não achavam — embaralhamento de partida inteira sob 64 bits de semente, e aposta que sumia no reinício do processo. A assimetria é o achado: as ferramentas de CONSULTA compraram pouco, porque consulta responde o que você pensou em perguntar; a que comprou foi a que fez pergunta sobre o que eu estava prestes a afirmar."
+  },
+  "riscos_conhecidos": [
+    "ABANDONO DE PARTIDA EM CURSO: A aposta 500 e entra na mesa, B joga uma carta e fecha a aba sem voltar; a mesa fica esperando a vez de B para sempre, as 500 de A ficam presas até o processo reiniciar (e aí voltam por estorno), e A não tem nenhum botão para sair. Paga o adversário, que não escolheu nada. Não tratei porque o conserto é relógio de jogada mais W.O., que é mais que v1 — mas é a lacuna mais visível e seria a primeira issue.",
+    "WEBHOOK SEM RETENTATIVA: o integrador registra a URL, o servidor dele fica fora do ar por 10 segundos no momento exato do fim da partida, e o evento partida.terminou se perde para sempre; a falha fica gravada na tabela entrega, então ele descobre, mas o evento não volta. Paga o integrador. Não tratei porque o conserto é fila durável com outbox e worker, e prefiro não ter retentativa a ter uma que finge garantia.",
+    "SSRF PARCIALMENTE MITIGADO: bloqueio link-local (169.254/16 e fe80::/10), que é o endpoint de metadados de nuvem — o alvo que transforma 'registre uma URL' em 'leia as credenciais da máquina'. NÃO bloqueio loopback nem rede privada, de propósito, porque inutilizaria integrador na mesma máquina (inclusive o receptor do meu próprio teste). Num serviço exposto na internet essa escolha se inverte. Além disso a validação é por IP literal: um nome que resolve para IP interno passa, e a defesa completa precisa resolver e conferir no momento do envio, contra DNS rebinding. Paga o operador do servidor.",
+    "SEM LIMITE DE TAXA EM NENHUMA ROTA: um script faz 100 mil POST /api/entrar contra o apelido de um jogador conhecido e tenta senhas até achar, ou faz 100 mil cadastros e enche o banco. O argon2id torna cada tentativa caro para o atacante — e também para o meu servidor, que é o outro lado da mesma moeda: isso é um vetor de exaustão de CPU. Paga o operador, e o jogador cuja senha é fraca. Não tratei porque limite de taxa honesto precisa de armazenamento por IP e política, e não está no escopo da v1.",
+    "PARTIDA NÃO SOBREVIVE A REINÍCIO: o estado da mesa vive em memória; o banco guarda jogador, saldo e resultado, nunca carta. Reiniciar o processo no meio de uma partida encerra-a como abandonada e devolve as apostas (foi um defeito que consertei), mas a partida em si é perdida — quem estava ganhando 11 a 2 perde o progresso. Paga quem estava ganhando. Não tratei porque persistir mão em banco cria um lugar de onde vazar carta, e v1 não promete retomada.",
+    "SEM RELÓGIO DE JOGADA: nada impede um jogador de pensar por horas, nem distingue 'pensando' de 'desapareceu'. É a mesma raiz do primeiro risco, e listo separado porque o conserto é o mesmo e serviria aos dois.",
+    "MESAS AGUARDANDO ACUMULAM SEM LIMITE: cada pedido de modo+aposta inédito cria uma mesa em memória e uma linha em partida; quem senta e nunca enche a mesa deixa as duas para trás. Não há limpeza de mesas velhas. Paga a memória do servidor, lentamente. Não tratei porque exige política de expiração, e em v1 o volume não justifica.",
+    "ASSINATURA DE WEBHOOK SEM TIMESTAMP: a assinatura cobre o corpo, não o instante. Quem capturar uma entrega válida pode reenviá-la ao integrador quantas vezes quiser, e ela continuará verificando. O conserto padrão é incluir o timestamp no material assinado e o integrador rejeitar o que for velho. Paga o integrador que não desduplicar por partida_id. Não tratei e é o risco que eu mais consertaria em seguida, porque é barato.",
+    "O 1x1 NÃO VEM DE FONTE NENHUMA: as quatro fontes só descrevem 2x2, e F-04 chega a definir 'Participantes: 2 duplas de jogadores'. Estendi pelo caminho mais curto (mesmas regras, dois jogadores, três cartas, uma vira) e declarei em D-03. Se existir uma variante canônica diferente, meu 1x1 está errado e nenhum teste meu acusaria — eles testam a minha decisão, não a regra do mundo.",
+    "DIVIRJO DE UMA FONTE CONSCIENTEMENTE: F-02 diz que pedir aumento em mão de onze é derrota imediata; eu recuso a ação em vez de punir (D-06). Quem esperar a regra literal vai achar meu jogo permissivo nesse ponto."
+  ],
+  "tempo_minutos": 99,
+  "como_o_tempo_foi_medido": "Derivado, não digitado: (date +%s menos o timestamp do primeiro commit do repositório de pesquisa) dividido por 60. O comando está no histórico. Inclui a pesquisa das fontes, que começou poucos minutos antes do primeiro commit.",
+  "o_que_eu_mais_erraria_de_novo": "Cinco dos meus nove erros registrados foram na VERIFICAÇÃO, não no produto: filtrei com grep a saída de um comando que falhou e apaguei a mensagem que continha a resposta; orcei um laço em iterações quando o custo era tempo de espera; assertei com uma palavra que os dois desfechos compartilhavam; varri a página inteira num teste de isolamento e tropecei no meu próprio logotipo. Um só erro foi de produto, e não fui eu que o achei — achou a aposta aleatória que eu havia introduzido por outro motivo. Isso inverte a intuição com que comecei: esperava gastar o esforço acertando o truco e gastei a maior parte acertando como eu olhava para o truco. A pesquisa antes do código explica a assimetria — com as regras tabeladas e conferidas contra fonte, o motor passou 31 de 31 na primeira execução; onde eu não tinha especificação prévia, que eram meus próprios testes, foi onde errei.",
+  "verificacao_das_provas": {
+    "porque": "A pergunta que a checagem de entrega faz é: 'apaguei a propriedade do código — algum teste ficou vermelho?'. Se ficar verde, o teste não testava a propriedade. Mutei três propriedades centrais e conferi que a suíte acusa cada uma. Sem isto, 59 testes verdes seriam uma afirmação sobre quantidade, não sobre cobertura.",
+    "mutacoes": [
+      {
+        "propriedade": "isolamento das mãos (um jogador não vê carta alheia)",
+        "mutacao": "pode_ver() passa a devolver true sempre",
+        "acusou": true,
+        "quem_acusou": "unidade: isolamento_das_maos_e_a_unica_excecao_da_mao_de_onze FAILED. integração: partida_1x1_inteira e mesa_2x2 FAILED, com a mensagem 'a carta 🂥 de bia apareceu no frame de ana' — os dois níveis pegam, e o de integração pega no frame do WebSocket, que é onde importa"
+      },
+      {
+        "propriedade": "R-08: vitória na 1ª + empate na 2ª encerra a mão",
+        "mutacao": "o braço [Some(a), None] de resolver() passa a devolver Continua",
+        "acusou": true,
+        "quem_acusou": "4 testes: empate_na_segunda_encerra_a_mao_sem_terceira_rodada, tabela_de_desempate_r08, e as duas partidas inteiras (que deixam de terminar)"
+      },
+      {
+        "propriedade": "R-06: correr concede o valor ANTERIOR da escada",
+        "mutacao": "valor_se_correr() passa a devolver o valor proposto",
+        "acusou": true,
+        "quem_acusou": "3 testes: correr_concede_o_valor_anterior, correr_do_truco_da_um_ponto_a_quem_pediu, escada_sobe_por_reaumento_e_trava_no_doze"
+      }
+    ],
+    "o_que_isto_nao_prova": "Três mutações não são análise de mutação completa. Provam que as três propriedades mais importantes têm teste que as testa; não provam que não há propriedade sem teste. O que eu sei estar sem teste está em riscos_conhecidos — e a lição de E-08 é que o defeito que escapou às minhas 47 asserções foi achado variando um valor, não acrescentando asserção."
+  }
+}
