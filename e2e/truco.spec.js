@@ -154,12 +154,22 @@ test('1x1: a carta na tela e o caractere Unicode, e a do adversario e um dorso',
   const dorsos = await a.page.getByTestId('assento-1').locator('.dorsos').textContent();
   expect(dorsos).toBe('🂠🂠🂠');
 
-  // (3) ISOLAMENTO, medido no DOM: nenhuma carta de b aparece no HTML de a
+  // (3) ISOLAMENTO, medido no DOM: nenhuma carta de b aparece na mesa de a.
+  //
+  // O escopo é `#tela-mesa`, não a página inteira, e isso me custou uma execução: o
+  // cabeçalho traz `🃑 Truco Paulista` como logotipo, então varrer `page.content()` acusava
+  // "a carta 🃑 de b vazou" sempre que b tivesse o ás de paus. Era decoração, não vazamento.
+  // Teste de isolamento tem de olhar a superfície onde a informação significaria algo.
   const maoB = await cartasNaMao(b.page);
-  const htmlA = await a.page.content();
+  const mesaDeA = await a.page.locator('#tela-mesa').innerHTML();
   for (const c of maoB) {
     if (maoA.includes(c) || c === vira) continue; // impossível, mas não quero falso positivo
-    expect(htmlA.includes(c), `a carta ${c} de b vazou para o DOM de a`).toBe(false);
+    expect(mesaDeA.includes(c), `a carta ${c} de b vazou para a mesa de a`).toBe(false);
+  }
+  // E o contrapositivo, para a asserção não poder passar por vacuidade: as cartas de a
+  // **estão** na mesa de a. Se este falhar, o teste acima não estava medindo nada.
+  for (const c of maoA) {
+    expect(mesaDeA.includes(c), `a propria carta ${c} de a nao esta na mesa dela`).toBe(true);
   }
   await a.contexto.close();
   await b.contexto.close();
