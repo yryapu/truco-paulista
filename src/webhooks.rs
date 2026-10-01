@@ -67,12 +67,18 @@ pub fn novo_segredo() -> String {
     format!("whsec_{}", hex::encode(b))
 }
 
-/// Recusa URL que não serve. Checagem deliberadamente simples: só http/https e com host.
+/// Recusa URL que não serve, e bloqueia o alvo de SSRF que de fato causa dano.
 ///
-/// **Não** faço bloqueio de rede interna (SSRF) aqui, e isso está nos riscos conhecidos: num
-/// serviço exposto de verdade, um webhook para `http://169.254.169.254/` ou `http://localhost`
-/// transforma o servidor em proxy para a rede interna. v1 roda local e eu declaro em vez de
-/// fingir que tratei.
+/// **O que bloqueio:** `169.254.0.0/16` (link-local), que é onde vive o endpoint de metadados
+/// de instância das nuvens (`169.254.169.254`). É o alvo que transforma "registre uma URL" em
+/// "leia as credenciais da máquina", e é barato de barrar.
+///
+/// **O que NÃO bloqueio, e por quê:** loopback e redes privadas (`127.0.0.0/8`, `10/8`,
+/// `192.168/16`, `172.16/12`). Bloqueá-las tornaria impossível o uso legítimo de um integrador
+/// rodando na mesma máquina ou na mesma rede — inclusive o receptor do meu próprio teste de
+/// integração. Num serviço exposto na internet essa escolha se inverte, e é por isso que ela
+/// está em `riscos_conhecidos` em vez de escondida aqui: a defesa completa precisa resolver o
+/// nome e conferir o IP **no momento do envio** (contra DNS rebinding), não só na validação.
 pub fn validar_url(u: &str) -> Result<(), &'static str> {
     if u.len() > 2000 {
         return Err("url longa demais");
@@ -85,7 +91,22 @@ pub fn validar_url(u: &str) -> Result<(), &'static str> {
     if host.is_empty() {
         return Err("a url precisa ter um host");
     }
+    let so_host = host.rsplit_once(':').map(|(h, _)| h).unwrap_or(host);
+    if e_link_local(so_host) {
+        return Err("url de rede link-local nao e aceita (endpoint de metadados)");
+    }
     Ok(())
+}
+
+/// `169.254.0.0/16` em IPv4, e `fe80::/10` em IPv6.
+fn e_link_local(host: &str) -> bool {
+    let limpo = host.trim_start_matches('[').trim_end_matches(']');
+    match limpo.parse::<std::net::IpAddr>() {
+        Ok(std::net::IpAddr::V4(v4)) => v4.is_link_local(),
+        Ok(std::net::IpAddr::V6(v6)) => (v6.segments()[0] & 0xffc0) == 0xfe80,
+        // Nome, não IP: não resolvo aqui. Ver o doc acima e `riscos_conhecidos`.
+        Err(_) => false,
+    }
 }
 
 /// Dispara um evento para todos os webhooks dos jogadores envolvidos.

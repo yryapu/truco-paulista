@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Truco Paulista</title>
+<!--
+  Sem passo de build, por decisão D-11 (ver repositório de pesquisa): o cliente é 100% DOM e
+  0% CPU, porque o servidor é autoritativo sobre as cartas. Um arquivo, nenhum bundler.
+  A carta é desenhada com o próprio caractere Unicode que veio do WebSocket.
+-->
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+<header>
+  <h1>🃑 Truco Paulista</h1>
+  <div id="eu" class="eu oculto">
+    <span data-testid="apelido-logado" id="apelido-logado"></span>
+    <span class="moedas">🪙 <b data-testid="saldo" id="saldo">—</b></span>
+    <span class="emblema" data-testid="emblema-vitorias" id="emblema-vitorias"></span>
+    <span class="emblema hist" data-testid="emblema-historico" id="emblema-historico"></span>
+    <button data-testid="btn-logout" id="btn-logout" class="lisa">sair</button>
+  </div>
+</header>
+
+<main>
+<!-- ENTRADA -->
+<section id="tela-entrada" class="cartao">
+  <h2>Entre e jogue</h2>
+  <p class="dica">Apelido e senha. Nada de e-mail, nada de confirmação.</p>
+  <form id="form-entrada" autocomplete="off">
+    <input data-testid="in-apelido" id="in-apelido" placeholder="seu apelido" maxlength="20" required>
+    <input data-testid="in-senha" id="in-senha" type="password" placeholder="senha (6+)" minlength="6" required>
+    <div class="linha">
+      <button data-testid="btn-cadastrar" id="btn-cadastrar" type="submit" class="primario">Cadastrar e jogar</button>
+      <button data-testid="btn-entrar" id="btn-entrar" type="button" class="lisa">Já tenho conta</button>
+    </div>
+  </form>
+  <p class="erro" data-testid="erro-entrada" id="erro-entrada"></p>
+</section>
+
+<!-- LOBBY -->
+<section id="tela-lobby" class="oculto">
+  <div class="cartao">
+    <h2>Escolher mesa</h2>
+    <div class="linha">
+      <label>Modo
+        <select data-testid="modo" id="modo">
+          <option value="1x1">1 x 1</option>
+          <option value="2x2">2 x 2 (duplas)</option>
+        </select>
+      </label>
+      <label>Aposta
+        <input data-testid="aposta" id="aposta" type="number" min="0" step="10" value="50">
+      </label>
+      <button data-testid="btn-sentar" id="btn-sentar" class="primario">Sentar na mesa</button>
+    </div>
+    <p class="erro" data-testid="erro-lobby" id="erro-lobby"></p>
+  </div>
+
+  <div class="duas">
+    <div class="cartao">
+      <h2>Ranking</h2>
+      <table class="rank"><thead><tr><th>#</th><th>jogador</th><th>V</th><th>D</th><th>emblemas</th></tr></thead>
+      <tbody data-testid="ranking" id="ranking"></tbody></table>
+    </div>
+    <div class="cartao">
+      <h2>Webhooks</h2>
+      <p class="dica">Receba <code>partida.comecou</code> e <code>partida.terminou</code>.</p>
+      <div class="linha">
+        <input data-testid="in-webhook" id="in-webhook" placeholder="https://seu-servidor/hook">
+        <button data-testid="btn-webhook" id="btn-webhook" class="lisa">Registrar</button>
+      </div>
+      <p class="erro" data-testid="erro-webhook" id="erro-webhook"></p>
+      <ul data-testid="lista-webhooks" id="lista-webhooks" class="hooks"></ul>
+      <pre data-testid="segredo-webhook" id="segredo-webhook" class="segredo oculto"></pre>
+    </div>
+  </div>
+</section>
+
+<!-- MESA -->
+<section id="tela-mesa" class="oculto">
+  <div class="placar">
+    <span>nós <b data-testid="pontos-nos" id="pontos-nos">0</b></span>
+    <span class="meio">
+      vira <b class="carta-min" data-testid="vira" id="vira">—</b>
+      · manilha <b data-testid="manilha" id="manilha">—</b>
+      · mão vale <b data-testid="valor" id="valor">1</b>
+    </span>
+    <span>eles <b data-testid="pontos-eles" id="pontos-eles">0</b></span>
+  </div>
+
+  <p data-testid="aviso" id="aviso" class="aviso"></p>
+
+  <div class="feltro">
+    <div data-testid="adversarios" id="adversarios" class="assentos"></div>
+    <div data-testid="na-mesa" id="na-mesa" class="na-mesa"></div>
+    <div data-testid="rodadas" id="rodadas" class="rodadas"></div>
+  </div>
+
+  <div data-testid="sua-mao" id="sua-mao" class="mao"></div>
+
+  <div class="acoes">
+    <button data-testid="btn-truco" id="btn-truco" class="truco oculto">TRUCO!</button>
+    <button data-testid="btn-aceitar" id="btn-aceitar" class="primario oculto">Aceito</button>
+    <button data-testid="btn-aumentar" id="btn-aumentar" class="truco oculto">Aumentar</button>
+    <button data-testid="btn-correr" id="btn-correr" class="lisa oculto">Corro</button>
+    <button data-testid="btn-onze-jogar" id="btn-onze-jogar" class="primario oculto">Jogar a mão de onze</button>
+    <button data-testid="btn-onze-correr" id="btn-onze-correr" class="lisa oculto">Correr</button>
+    <label class="encobrir oculto" id="rotulo-encobrir">
+      <input type="checkbox" data-testid="chk-encobrir" id="chk-encobrir"> jogar encoberta
+    </label>
+    <button data-testid="btn-lobby" id="btn-lobby" class="lisa">voltar ao lobby</button>
+  </div>
+
+  <p class="erro" data-testid="erro-mesa" id="erro-mesa"></p>
+  <ol data-testid="log" id="log" class="log"></ol>
+</section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

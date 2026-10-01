@@ -19,7 +19,19 @@ use std::sync::Arc;
 use tokio::sync::{broadcast, Mutex};
 
 /// Pausa entre a mão que acabou e a próxima, para o jogador ver o resultado.
-const PAUSA_ENTRE_MAOS: std::time::Duration = std::time::Duration::from_millis(2600);
+///
+/// Configurável porque o teste de integração joga partidas inteiras: com 2,6 s por mão, uma
+/// partida até 12 pontos custaria meio minuto de suíte. O padrão é o do jogo, não o do teste.
+fn pausa_entre_maos() -> std::time::Duration {
+    static MS: std::sync::OnceLock<u64> = std::sync::OnceLock::new();
+    let ms = *MS.get_or_init(|| {
+        std::env::var("PAUSA_MAO_MS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(2600)
+    });
+    std::time::Duration::from_millis(ms)
+}
 /// Quantos eventos o log da mesa guarda. É narração, não auditoria.
 const LIMITE_DO_LOG: usize = 60;
 
@@ -462,7 +474,7 @@ impl Estado {
                     return;
                 }
             }
-            tokio::time::sleep(PAUSA_ENTRE_MAOS).await;
+            tokio::time::sleep(pausa_entre_maos()).await;
             let acabou = {
                 let mut m = mesas.lock().await;
                 let Some(mesa) = m.get_mut(&mesa_id) else {

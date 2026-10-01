@@ -33,3 +33,7 @@ unsafe_code = "forbid"
 
 [lints.clippy]
 all = { level = "deny", priority = -1 }
+
+[dev-dependencies]
+futures-util = "0.3.34"
+tokio-tungstenite = "0.30.0"
