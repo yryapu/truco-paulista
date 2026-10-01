@@ -11,7 +11,7 @@ use crate::cartas::{baralho, Carta, Forca, FORCA_ENCOBERTA};
 use rand::seq::SliceRandom;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 pub type Equipe = u8;
 pub type Assento = usize;
@@ -99,8 +99,13 @@ pub struct Aposta {
 #[serde(tag = "fase", rename_all = "snake_case")]
 pub enum Fase {
     /// R-10: a equipe em 11 ainda não disse se joga.
-    DecidirOnze { equipe: Equipe, decide: Assento },
-    Jogando { vez: Assento },
+    DecidirOnze {
+        equipe: Equipe,
+        decide: Assento,
+    },
+    Jogando {
+        vez: Assento,
+    },
     Respondendo(Aposta),
     Encerrada {
         vencedora: Option<Equipe>,
@@ -126,7 +131,9 @@ impl Jogada {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+/// Chega do cliente (`{"acao":"responder","resposta":"aceito"}`) e volta no log, logo precisa
+/// dos dois lados.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Resposta {
     Aceito,
@@ -136,11 +143,16 @@ pub enum Resposta {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Acao {
-    Jogar { carta: Carta, encoberta: bool },
+    Jogar {
+        carta: Carta,
+        encoberta: bool,
+    },
     Pedir,
     Responder(Resposta),
     /// R-10: a equipe em 11 decide.
-    DecidirOnze { aceita: bool },
+    DecidirOnze {
+        aceita: bool,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -657,8 +669,14 @@ mod testes {
     }
 
     fn jogar(p: &mut Partida, assento: Assento, carta: Carta) -> Vec<Evento> {
-        p.aplicar(assento, Acao::Jogar { carta, encoberta: false })
-            .unwrap_or_else(|e| panic!("assento {assento} nao conseguiu jogar {carta}: {e}"))
+        p.aplicar(
+            assento,
+            Acao::Jogar {
+                carta,
+                encoberta: false,
+            },
+        )
+        .unwrap_or_else(|e| panic!("assento {assento} nao conseguiu jogar {carta}: {e}"))
     }
 
     // ----- R-06: a escada de pontos -----
@@ -666,7 +684,11 @@ mod testes {
     /// A tabela de R-06, inclusive o ponto que refutei em F-01: truco aceito vale **3**.
     #[test]
     fn escada_de_pontos_e_1_3_6_9_12() {
-        assert_eq!(proximo_valor(1), Some(3), "truco aceito vale 3, nao 2 (ver refutado/R-01)");
+        assert_eq!(
+            proximo_valor(1),
+            Some(3),
+            "truco aceito vale 3, nao 2 (ver refutado/R-01)"
+        );
         assert_eq!(proximo_valor(3), Some(6));
         assert_eq!(proximo_valor(6), Some(9));
         assert_eq!(proximo_valor(9), Some(12));
@@ -716,8 +738,16 @@ mod testes {
             Modo::UmVsUm,
             vira,
             vec![
-                vec![c(Valor::Tres, Naipe::Espadas), c(Valor::Sete, Naipe::Espadas), c(Valor::Seis, Naipe::Espadas)],
-                vec![c(Valor::Dois, Naipe::Copas), c(Valor::Sete, Naipe::Copas), c(Valor::Quatro, Naipe::Copas)],
+                vec![
+                    c(Valor::Tres, Naipe::Espadas),
+                    c(Valor::Sete, Naipe::Espadas),
+                    c(Valor::Seis, Naipe::Espadas),
+                ],
+                vec![
+                    c(Valor::Dois, Naipe::Copas),
+                    c(Valor::Sete, Naipe::Copas),
+                    c(Valor::Quatro, Naipe::Copas),
+                ],
             ],
             0,
         );
@@ -728,7 +758,13 @@ mod testes {
         jogar(&mut p, 1, c(Valor::Sete, Naipe::Copas));
         assert_eq!(p.mao.rodadas, vec![Some(0), None]);
         assert!(
-            matches!(p.mao.fase, Fase::Encerrada { vencedora: Some(0), pontos: 1 }),
+            matches!(
+                p.mao.fase,
+                Fase::Encerrada {
+                    vencedora: Some(0),
+                    pontos: 1
+                }
+            ),
             "R-08: vitoria na 1a + empate na 2a encerra a mao, fase ficou {:?}",
             p.mao.fase
         );
@@ -771,7 +807,10 @@ mod testes {
         let mut p = forjar(
             Modo::UmVsUm,
             vira,
-            vec![vec![c(Valor::Tres, Naipe::Espadas); 3], vec![c(Valor::Dois, Naipe::Copas); 3]],
+            vec![
+                vec![c(Valor::Tres, Naipe::Espadas); 3],
+                vec![c(Valor::Dois, Naipe::Copas); 3],
+            ],
             0,
         );
         p.aplicar(0, Acao::Pedir).unwrap();
@@ -792,12 +831,19 @@ mod testes {
         let mut p = forjar(
             Modo::UmVsUm,
             vira,
-            vec![vec![c(Valor::Tres, Naipe::Espadas); 3], vec![c(Valor::Dois, Naipe::Copas); 3]],
+            vec![
+                vec![c(Valor::Tres, Naipe::Espadas); 3],
+                vec![c(Valor::Dois, Naipe::Copas); 3],
+            ],
             0,
         );
         p.aplicar(0, Acao::Pedir).unwrap();
         p.aplicar(1, Acao::Responder(Resposta::Correr)).unwrap();
-        assert_eq!(p.pontos, [1, 0], "R-06: truco corrido = 1 ponto a quem pediu");
+        assert_eq!(
+            p.pontos,
+            [1, 0],
+            "R-06: truco corrido = 1 ponto a quem pediu"
+        );
         assert!(matches!(p.mao.fase, Fase::Encerrada { pontos: 1, .. }));
     }
 
@@ -808,7 +854,10 @@ mod testes {
         let mut p = forjar(
             Modo::UmVsUm,
             vira,
-            vec![vec![c(Valor::Tres, Naipe::Espadas); 3], vec![c(Valor::Dois, Naipe::Copas); 3]],
+            vec![
+                vec![c(Valor::Tres, Naipe::Espadas); 3],
+                vec![c(Valor::Dois, Naipe::Copas); 3],
+            ],
             0,
         );
         p.aplicar(0, Acao::Pedir).unwrap(); // truco: 3
@@ -833,12 +882,21 @@ mod testes {
         let mut p = forjar(
             Modo::UmVsUm,
             vira,
-            vec![vec![c(Valor::Tres, Naipe::Espadas); 3], vec![c(Valor::Dois, Naipe::Copas); 3]],
+            vec![
+                vec![c(Valor::Tres, Naipe::Espadas); 3],
+                vec![c(Valor::Dois, Naipe::Copas); 3],
+            ],
             0,
         );
         assert_eq!(p.aplicar(1, Acao::Pedir), Err(Erro::NaoEhSuaVez), "R-07");
         assert_eq!(
-            p.aplicar(1, Acao::Jogar { carta: c(Valor::Dois, Naipe::Copas), encoberta: false }),
+            p.aplicar(
+                1,
+                Acao::Jogar {
+                    carta: c(Valor::Dois, Naipe::Copas),
+                    encoberta: false
+                }
+            ),
             Err(Erro::NaoEhSuaVez)
         );
     }
@@ -849,11 +907,20 @@ mod testes {
         let mut p = forjar(
             Modo::UmVsUm,
             vira,
-            vec![vec![c(Valor::Tres, Naipe::Espadas); 3], vec![c(Valor::Dois, Naipe::Copas); 3]],
+            vec![
+                vec![c(Valor::Tres, Naipe::Espadas); 3],
+                vec![c(Valor::Dois, Naipe::Copas); 3],
+            ],
             0,
         );
         assert_eq!(
-            p.aplicar(0, Acao::Jogar { carta: c(Valor::As, Naipe::Paus), encoberta: false }),
+            p.aplicar(
+                0,
+                Acao::Jogar {
+                    carta: c(Valor::As, Naipe::Paus),
+                    encoberta: false
+                }
+            ),
             Err(Erro::CartaNaoEstaNaMao),
             "o cliente nao escolhe carta que nao esta na mao dele"
         );
@@ -868,13 +935,27 @@ mod testes {
             Modo::UmVsUm,
             vira,
             vec![
-                vec![c(Valor::Tres, Naipe::Espadas), c(Valor::Seis, Naipe::Espadas), c(Valor::Sete, Naipe::Espadas)],
-                vec![c(Valor::Dois, Naipe::Copas), c(Valor::Quatro, Naipe::Copas), c(Valor::Cinco, Naipe::Paus)],
+                vec![
+                    c(Valor::Tres, Naipe::Espadas),
+                    c(Valor::Seis, Naipe::Espadas),
+                    c(Valor::Sete, Naipe::Espadas),
+                ],
+                vec![
+                    c(Valor::Dois, Naipe::Copas),
+                    c(Valor::Quatro, Naipe::Copas),
+                    c(Valor::Cinco, Naipe::Paus),
+                ],
             ],
             0,
         );
         assert_eq!(
-            p.aplicar(0, Acao::Jogar { carta: c(Valor::Tres, Naipe::Espadas), encoberta: true }),
+            p.aplicar(
+                0,
+                Acao::Jogar {
+                    carta: c(Valor::Tres, Naipe::Espadas),
+                    encoberta: true
+                }
+            ),
             Err(Erro::EncobertaNaPrimeiraRodada),
             "R-12"
         );
@@ -882,11 +963,21 @@ mod testes {
         jogar(&mut p, 1, c(Valor::Dois, Naipe::Copas));
         // segunda rodada: agora pode
         let evs = p
-            .aplicar(0, Acao::Jogar { carta: c(Valor::Seis, Naipe::Espadas), encoberta: true })
+            .aplicar(
+                0,
+                Acao::Jogar {
+                    carta: c(Valor::Seis, Naipe::Espadas),
+                    encoberta: true,
+                },
+            )
             .expect("R-12 permite encobrir da segunda rodada em diante");
         assert_eq!(
             evs[0],
-            Evento::CartaJogada { assento: 0, carta: None, encoberta: true },
+            Evento::CartaJogada {
+                assento: 0,
+                carta: None,
+                encoberta: true
+            },
             "o caractere de uma carta encoberta nao pode sair do servidor"
         );
         // e a encoberta perde: o 4 do adversário leva a rodada
@@ -899,7 +990,10 @@ mod testes {
     fn com_pontos(modo: Modo, pontos: [u8; 2]) -> Partida {
         let mut p = Partida::com_semente(modo, 11);
         p.pontos = pontos;
-        p.mao.fase = Fase::Encerrada { vencedora: None, pontos: 0 };
+        p.mao.fase = Fase::Encerrada {
+            vencedora: None,
+            pontos: 0,
+        };
         p.proxima_mao();
         p
     }
@@ -913,27 +1007,42 @@ mod testes {
             panic!("R-10 exige decisao antes de jogar, fase = {:?}", p.mao.fase)
         };
         assert_eq!(equipe, 0);
-        assert_eq!(equipe_de(decide), 0, "quem decide tem de ser da equipe em 11");
+        assert_eq!(
+            equipe_de(decide),
+            0,
+            "quem decide tem de ser da equipe em 11"
+        );
     }
 
     #[test]
     fn correr_da_mao_de_onze_da_um_ponto_ao_adversario() {
         let mut p = com_pontos(Modo::DoisVsDois, [11, 4]);
-        let Fase::DecidirOnze { decide, .. } = p.mao.fase else { unreachable!() };
-        p.aplicar(decide, Acao::DecidirOnze { aceita: false }).unwrap();
+        let Fase::DecidirOnze { decide, .. } = p.mao.fase else {
+            unreachable!()
+        };
+        p.aplicar(decide, Acao::DecidirOnze { aceita: false })
+            .unwrap();
         assert_eq!(p.pontos, [11, 5], "R-10: correu, adversario ganha 1");
     }
 
     #[test]
     fn aceitar_a_mao_de_onze_libera_o_jogo_valendo_tres() {
         let mut p = com_pontos(Modo::DoisVsDois, [11, 4]);
-        let Fase::DecidirOnze { decide, .. } = p.mao.fase else { unreachable!() };
-        p.aplicar(decide, Acao::DecidirOnze { aceita: true }).unwrap();
+        let Fase::DecidirOnze { decide, .. } = p.mao.fase else {
+            unreachable!()
+        };
+        p.aplicar(decide, Acao::DecidirOnze { aceita: true })
+            .unwrap();
         assert!(matches!(p.mao.fase, Fase::Jogando { .. }));
         assert_eq!(p.mao.valor, 3);
         // R-10 via F-02: em mão de onze não se pede aumento
-        let Fase::Jogando { vez } = p.mao.fase else { unreachable!() };
-        assert_eq!(p.aplicar(vez, Acao::Pedir), Err(Erro::SemAumentoNaMaoEspecial));
+        let Fase::Jogando { vez } = p.mao.fase else {
+            unreachable!()
+        };
+        assert_eq!(
+            p.aplicar(vez, Acao::Pedir),
+            Err(Erro::SemAumentoNaMaoEspecial)
+        );
     }
 
     #[test]
@@ -954,19 +1063,35 @@ mod testes {
         let p = Partida::com_semente(Modo::DoisVsDois, 3);
         for obs in 0..4 {
             for alvo in 0..4 {
-                assert_eq!(p.pode_ver(obs, alvo), obs == alvo, "mao normal: so a propria");
+                assert_eq!(
+                    p.pode_ver(obs, alvo),
+                    obs == alvo,
+                    "mao normal: so a propria"
+                );
             }
         }
         let mut p = com_pontos(Modo::DoisVsDois, [11, 4]);
         // equipe 0 = assentos 0 e 2
-        assert!(p.pode_ver(0, 2), "R-10: a equipe em 11 ve a mao do parceiro");
+        assert!(
+            p.pode_ver(0, 2),
+            "R-10: a equipe em 11 ve a mao do parceiro"
+        );
         assert!(p.pode_ver(2, 0));
         assert!(!p.pode_ver(0, 1), "nunca se ve a mao do adversario");
-        assert!(!p.pode_ver(1, 3), "a equipe que nao esta em 11 nao ganha visibilidade");
+        assert!(
+            !p.pode_ver(1, 3),
+            "a equipe que nao esta em 11 nao ganha visibilidade"
+        );
         // depois de decidir, a visibilidade fecha
-        let Fase::DecidirOnze { decide, .. } = p.mao.fase else { unreachable!() };
-        p.aplicar(decide, Acao::DecidirOnze { aceita: true }).unwrap();
-        assert!(!p.pode_ver(0, 2), "a visibilidade da mao de onze acaba com a decisao");
+        let Fase::DecidirOnze { decide, .. } = p.mao.fase else {
+            unreachable!()
+        };
+        p.aplicar(decide, Acao::DecidirOnze { aceita: true })
+            .unwrap();
+        assert!(
+            !p.pode_ver(0, 2),
+            "a visibilidade da mao de onze acaba com a decisao"
+        );
     }
 
     // ----- distribuição e fim de partida -----
@@ -985,7 +1110,11 @@ mod testes {
                         assert!(vistas.insert(*c), "carta repetida na mesa: {c}");
                     }
                 }
-                assert!(vistas.insert(p.mao.vira), "a vira saiu repetida: {}", p.mao.vira);
+                assert!(
+                    vistas.insert(p.mao.vira),
+                    "a vira saiu repetida: {}",
+                    p.mao.vira
+                );
             }
         }
     }
@@ -1000,17 +1129,29 @@ mod testes {
                 let mut passos = 0;
                 while p.vencedora.is_none() {
                     passos += 1;
-                    assert!(passos < 5000, "motor nao termina (modo {modo:?}, semente {semente})");
+                    assert!(
+                        passos < 5000,
+                        "motor nao termina (modo {modo:?}, semente {semente})"
+                    );
                     match p.mao.fase {
                         Fase::DecidirOnze { decide, .. } => {
-                            p.aplicar(decide, Acao::DecidirOnze { aceita: true }).unwrap();
+                            p.aplicar(decide, Acao::DecidirOnze { aceita: true })
+                                .unwrap();
                         }
                         Fase::Jogando { vez } => {
                             let carta = p.mao.cartas[vez][0];
-                            p.aplicar(vez, Acao::Jogar { carta, encoberta: false }).unwrap();
+                            p.aplicar(
+                                vez,
+                                Acao::Jogar {
+                                    carta,
+                                    encoberta: false,
+                                },
+                            )
+                            .unwrap();
                         }
                         Fase::Respondendo(a) => {
-                            p.aplicar(a.responde, Acao::Responder(Resposta::Aceito)).unwrap();
+                            p.aplicar(a.responde, Acao::Responder(Resposta::Aceito))
+                                .unwrap();
                         }
                         Fase::Encerrada { .. } => {
                             p.proxima_mao();
@@ -1023,7 +1164,10 @@ mod testes {
                     "R-09: venceu com {} pontos",
                     p.pontos[e]
                 );
-                assert!(p.pontos[1 - e] < PONTOS_PARA_VENCER, "os dois nao podem vencer");
+                assert!(
+                    p.pontos[1 - e] < PONTOS_PARA_VENCER,
+                    "os dois nao podem vencer"
+                );
             }
         }
     }
@@ -1039,16 +1183,28 @@ mod testes {
                 assert!(passos < 20000, "motor nao termina com truco agressivo");
                 match p.mao.fase {
                     Fase::DecidirOnze { decide, .. } => {
-                        p.aplicar(decide, Acao::DecidirOnze { aceita: true }).unwrap();
+                        p.aplicar(decide, Acao::DecidirOnze { aceita: true })
+                            .unwrap();
                     }
                     Fase::Jogando { vez } => {
                         if p.aplicar(vez, Acao::Pedir).is_err() {
                             let carta = p.mao.cartas[vez][0];
-                            p.aplicar(vez, Acao::Jogar { carta, encoberta: false }).unwrap();
+                            p.aplicar(
+                                vez,
+                                Acao::Jogar {
+                                    carta,
+                                    encoberta: false,
+                                },
+                            )
+                            .unwrap();
                         }
                     }
                     Fase::Respondendo(a) => {
-                        let r = if a.proposto >= 9 { Resposta::Aceito } else { Resposta::Aumentar };
+                        let r = if a.proposto >= 9 {
+                            Resposta::Aceito
+                        } else {
+                            Resposta::Aumentar
+                        };
                         p.aplicar(a.responde, Acao::Responder(r)).unwrap();
                     }
                     Fase::Encerrada { .. } => {

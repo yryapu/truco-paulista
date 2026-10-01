@@ -6,11 +6,13 @@ description = "Truco paulista jogavel: servidor autoritativo em Rust, WebSocket 
 license = "MIT"
 
 [dependencies]
+anyhow = "1.0.104"
 argon2 = "0.6.0"
 axum = { version = "0.8.9", features = ["ws", "macros"] }
 axum-extra = { version = "0.12.6", features = ["cookie"] }
 base64 = "0.23.1"
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "serde"] }
+cookie = "0.18.2"
 hex = "0.4.3"
 hmac = "0.13.0"
 rand = "0.10.3"
@@ -19,12 +21,12 @@ reqwest = { version = "0.13.5", default-features = false, features = ["json", "r
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 sha2 = "0.11.0"
-sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "sqlite", "migrate", "chrono"] }
+sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "sqlite", "migrate", "chrono", "macros"] }
 thiserror = "2.0.21"
 tokio = { version = "1.53.1", features = ["full"] }
 tower-http = { version = "0.7.1", features = ["fs", "trace"] }
 tracing = "0.1.44"
-tracing-subscriber = "0.3.23"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 
 [lints.rust]
 unsafe_code = "forbid"

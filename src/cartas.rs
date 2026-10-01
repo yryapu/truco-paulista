@@ -247,7 +247,11 @@ mod testes {
     fn baralho_tem_40_cartas_distintas_com_40_caracteres_distintos() {
         let b = baralho();
         assert_eq!(b.len(), 40, "R-01: o baralho do truco tem 40 cartas");
-        assert_eq!(b.iter().collect::<HashSet<_>>().len(), 40, "cartas repetidas");
+        assert_eq!(
+            b.iter().collect::<HashSet<_>>().len(),
+            40,
+            "cartas repetidas"
+        );
         let chars: HashSet<char> = b.iter().map(|c| c.unicode()).collect();
         assert_eq!(chars.len(), 40, "duas cartas colidiram no mesmo caractere");
     }
@@ -265,7 +269,11 @@ mod testes {
     fn recusa_cavaleiro_e_oito_nove_dez() {
         for cp in [0x1F0AC, 0x1F0BC, 0x1F0CC, 0x1F0DC] {
             let c = char::from_u32(cp).unwrap();
-            assert_eq!(Carta::do_unicode(c), None, "cavaleiro {c} entrou no baralho");
+            assert_eq!(
+                Carta::do_unicode(c),
+                None,
+                "cavaleiro {c} entrou no baralho"
+            );
         }
         for base in [0x1F0A0u32, 0x1F0B0, 0x1F0C0, 0x1F0D0] {
             for d in [0x8, 0x9, 0xA] {
@@ -305,11 +313,19 @@ mod testes {
             }
             let fa = Carta::nova(a, Naipe::Ouros).forca(vira);
             let fb = Carta::nova(b, Naipe::Ouros).forca(vira);
-            assert!(fa < fb, "R-02: {} devia ser mais fraca que {}", a.rotulo(), b.rotulo());
+            assert!(
+                fa < fb,
+                "R-02: {} devia ser mais fraca que {}",
+                a.rotulo(),
+                b.rotulo()
+            );
         }
         let dama = Carta::nova(Valor::Dama, Naipe::Paus).forca(vira);
         let valete = Carta::nova(Valor::Valete, Naipe::Ouros).forca(vira);
-        assert!(dama < valete, "F-01: a Q e mais fraca que o J, em qualquer naipe");
+        assert!(
+            dama < valete,
+            "F-01: a Q e mais fraca que o J, em qualquer naipe"
+        );
     }
 
     /// R-02: entre cartas comuns o naipe não conta — e isso produz empate.
@@ -349,8 +365,13 @@ mod testes {
                     if c.e_manilha(vira) {
                         continue;
                     }
-                    assert!(m > c.forca(vira), "manilha {} nao bateu {} (vira {})",
-                        Carta::nova(manilha_valor, naipe_m), c, vira);
+                    assert!(
+                        m > c.forca(vira),
+                        "manilha {} nao bateu {} (vira {})",
+                        Carta::nova(manilha_valor, naipe_m),
+                        c,
+                        vira
+                    );
                 }
             }
         }
@@ -390,7 +411,10 @@ mod testes {
         // e o que não é carta é recusado, não silenciosamente aceito
         assert!(serde_json::from_str::<Carta>("\"AS\"").is_err());
         assert!(serde_json::from_str::<Carta>("\"🂬\"").is_err(), "cavaleiro");
-        assert!(serde_json::from_str::<Carta>("\"🂡🂱\"").is_err(), "duas cartas");
+        assert!(
+            serde_json::from_str::<Carta>("\"🂡🂱\"").is_err(),
+            "duas cartas"
+        );
         assert!(serde_json::from_str::<Carta>("\"\"").is_err());
     }
 }
